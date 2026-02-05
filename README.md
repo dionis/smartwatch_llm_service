@@ -396,4 +396,4 @@ ollama list
 
 ## License
 
-This project is part of a Platzi course on AI backend development.
+MIT
