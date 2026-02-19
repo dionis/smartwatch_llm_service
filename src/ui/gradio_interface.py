@@ -381,12 +381,19 @@ def create_interface():
             outputs=[model_status]
         )
 
-        # Auto-check status on page load
+        # Auto-refresh model status every 5 seconds using gr.Timer
+        status_timer = gr.Timer(value=5)
+        status_timer.tick(
+            fn=refresh_model_status,
+            inputs=[fastapi_url],
+            outputs=[model_status]
+        )
+
+        # Also check on page load
         demo.load(
             fn=refresh_model_status,
             inputs=[fastapi_url],
-            outputs=[model_status],
-            every=5  # Auto-refresh every 5 seconds
+            outputs=[model_status]
         )
 
         # Handle test button click
