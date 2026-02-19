@@ -5,6 +5,7 @@ import os
 from .base import BaseLLM
 from .phi4 import Phi4LLM
 from .generic_multimodal import GenericMultimodalLLM
+from .moondream import MoondreamLLM
 from .ollama import OllamaLLM
 
 
@@ -33,9 +34,8 @@ class LLMFactory:
             "use_vision2seq": True
         },
         "moondream": {
-            "class": GenericMultimodalLLM,
+            "class": MoondreamLLM,
             "model_name": "vikhyatk/moondream2",
-            "use_vision2seq": False
         },
         "ollama": {
             "class": OllamaLLM,
