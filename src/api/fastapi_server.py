@@ -1,6 +1,7 @@
 """FastAPI server for smartwatch image processing."""
 import time
 import io
+import os
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 from PIL import Image
@@ -45,10 +46,14 @@ async def startup_event():
         global llm_instance, model_loading
         try:
             model_loading = True
-            print("Loading LLM model in background...")
+            # Use model from env var, defaulting to moondream (lightweight ~1.8B)
+            # phi4 (~7B) requires ~28GB RAM on CPU and may cause OOM on constrained environments
+            model_type = os.getenv("LLM_MODEL_TYPE", "moondream")
+            device = os.getenv("DEVICE", "cpu")
+            print(f"Loading LLM model in background (type={model_type}, device={device})...")
             llm_instance = LLMFactory.create_llm(
-                model_type="phi4",  # Default model, can be overridden via env vars
-                device="cpu"  # Change to "cuda" if GPU is available
+                model_type=model_type,
+                device=device
             )
             llm_instance.load_model()
             model_loading = False
@@ -109,8 +114,10 @@ async def process_smartwatch_image(
     # Load model if not already loaded
     if llm_instance is None or llm_instance.model is None:
         try:
-            print("Loading LLM model (lazy loading)...")
-            llm_instance = LLMFactory.create_llm(model_type="phi4", device="cpu")
+            model_type = os.getenv("LLM_MODEL_TYPE", "moondream")
+            device = os.getenv("DEVICE", "cpu")
+            print(f"Loading LLM model (lazy loading, type={model_type})...")
+            llm_instance = LLMFactory.create_llm(model_type=model_type, device=device)
             llm_instance.load_model()
         except Exception as e:
             raise HTTPException(
