@@ -68,14 +68,31 @@ def test_fastapi(image, timestamp, user_id, command, description, fastapi_url):
                     f"Then update the URL above to http://localhost:8001"
                 )
         except requests.exceptions.ConnectionError:
-            return (
-                f"Error: Could not connect to FastAPI server at {base_url}\n\n"
-                f"Start the server in a separate terminal:\n"
-                f"  uv run python main.py fastapi\n\n"
-                f"If port 8000 is taken (e.g. on Lightning.ai), set in .env:\n"
-                f"  FASTAPI_PORT=8001\n"
-                f"Then update the URL above to http://localhost:8001"
-            )
+            # Detect if user is using a Lightning.ai public URL instead of localhost
+            is_cloud_url = ("cloudspaces" in base_url or "litng.ai" in base_url
+                           or "lightning.ai" in base_url)
+            _port = os.getenv("FASTAPI_PORT", "8001")
+
+            if is_cloud_url:
+                return (
+                    f"Error: Could not connect to FastAPI server at {base_url}\n\n"
+                    f"⚠️  You are using a Lightning.ai public URL. On Lightning.ai,\n"
+                    f"port 8000 is RESERVED by the platform and cannot be used for FastAPI.\n\n"
+                    f"Fix:\n"
+                    f"1. Set FASTAPI_PORT=8001 in your .env file\n"
+                    f"2. Restart the FastAPI server: uv run python main.py fastapi\n"
+                    f"3. Change the URL above to: http://localhost:{_port}\n"
+                    f"   (Gradio and FastAPI run on the same machine, use localhost)\n"
+                )
+            else:
+                return (
+                    f"Error: Could not connect to FastAPI server at {base_url}\n\n"
+                    f"Start the server in a separate terminal:\n"
+                    f"  uv run python main.py fastapi\n\n"
+                    f"If port 8000 is taken (e.g. on Lightning.ai), set in .env:\n"
+                    f"  FASTAPI_PORT={_port}\n"
+                    f"Then update the URL above to http://localhost:{_port}"
+                )
 
         # Make request to FastAPI
         response = requests.post(
@@ -258,10 +275,16 @@ def create_interface():
                 with gr.Group(visible=True) as fastapi_config:
                     gr.Markdown("#### FastAPI Configuration")
                     _fastapi_port = os.getenv("FASTAPI_PORT", "8000")
+
+                    # Auto-detect correct FastAPI URL
+                    # On Lightning.ai, port 8000 is reserved; use localhost for internal calls
+                    _default_fastapi_url = f"http://localhost:{_fastapi_port}"
+
                     fastapi_url = gr.Textbox(
                         label="FastAPI URL",
-                        value=f"http://localhost:{_fastapi_port}",
-                        placeholder="http://localhost:8000"
+                        value=_default_fastapi_url,
+                        placeholder="http://localhost:8001",
+                        info="Use http://localhost:<port>. On Lightning.ai, avoid port 8000 (reserved)."
                     )
 
                 # gRPC configuration

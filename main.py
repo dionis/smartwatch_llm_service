@@ -20,8 +20,9 @@ def run_fastapi():
     import uvicorn
     from src.api.fastapi_server import app
 
-    port = int(os.getenv("FASTAPI_PORT", "8000"))
+    port = int(os.getenv("FASTAPI_PORT", "8001"))
     print(f"FastAPI starting on port {port}")
+    print(f"  → If on Lightning.ai, make sure port {port} is NOT 8000 (reserved by platform)")
     uvicorn.run(
         app,
         host="0.0.0.0",
@@ -49,11 +50,12 @@ def generate_protos():
 def run_gradio():
     """Run Gradio interface with FastAPI server in background."""
     import threading
+    import time
     import uvicorn
     from src.api.fastapi_server import app as fastapi_app
     from src.ui.gradio_interface import launch
 
-    fastapi_port = int(os.getenv("FASTAPI_PORT", "8000"))
+    fastapi_port = int(os.getenv("FASTAPI_PORT", "8001"))
 
     # Start FastAPI in a background daemon thread
     config = uvicorn.Config(
@@ -66,6 +68,11 @@ def run_gradio():
     fastapi_thread = threading.Thread(target=server.run, daemon=True)
     fastapi_thread.start()
     print(f"FastAPI server running in background on port {fastapi_port}")
+    print(f"  → Internal URL: http://localhost:{fastapi_port}")
+    print(f"  → Use http://localhost:{fastapi_port} in Gradio (NOT the Lightning.ai public URL)")
+
+    # Wait briefly for FastAPI to start
+    time.sleep(2)
 
     gradio_port = int(os.getenv("GRADIO_PORT", "7860"))
     launch(server_name="0.0.0.0", server_port=gradio_port, share=False)
