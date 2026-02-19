@@ -259,7 +259,6 @@ def create_interface():
                     label="Service Response",
                     lines=15,
                     max_lines=20,
-                    show_copy_button=True
                 )
 
         # Toggle visibility based on service type
