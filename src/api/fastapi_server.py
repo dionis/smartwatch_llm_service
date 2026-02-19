@@ -18,6 +18,7 @@ app = FastAPI(
 
 # Global LLM instance
 llm_instance = None
+model_loading = False
 
 # System prompt for the LLM
 SYSTEM_PROMPT = """You are an AI assistant specialized in extracting data from smartwatch screenshots.
@@ -37,19 +38,29 @@ Example: {"heart_rate": "72 bpm", "steps": "8543", "calories": "450 kcal"}
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the LLM model on startup."""
-    global llm_instance
-    try:
-        print("Loading LLM model...")
-        llm_instance = LLMFactory.create_llm(
-            model_type="phi4",  # Default model, can be overridden via env vars
-            device="cpu"  # Change to "cuda" if GPU is available
-        )
-        llm_instance.load_model()
-        print("LLM model loaded successfully")
-    except Exception as e:
-        print(f"Warning: Failed to load LLM model on startup: {e}")
-        print("Model will be loaded on first request")
+    """Initialize the LLM model on startup in a background thread."""
+    import threading
+
+    def _load_model():
+        global llm_instance, model_loading
+        try:
+            model_loading = True
+            print("Loading LLM model in background...")
+            llm_instance = LLMFactory.create_llm(
+                model_type="phi4",  # Default model, can be overridden via env vars
+                device="cpu"  # Change to "cuda" if GPU is available
+            )
+            llm_instance.load_model()
+            model_loading = False
+            print("LLM model loaded successfully")
+        except Exception as e:
+            model_loading = False
+            print(f"Warning: Failed to load LLM model on startup: {e}")
+            print("Model will be loaded on first request")
+
+    # Load model in background so FastAPI can start serving immediately
+    loader_thread = threading.Thread(target=_load_model, daemon=True)
+    loader_thread.start()
 
 
 @app.on_event("shutdown")
@@ -67,6 +78,7 @@ async def health_check():
     return HealthCheckResponse(
         status="healthy",
         model_loaded=llm_instance is not None and llm_instance.model is not None,
+        model_loading=model_loading,
         model_name=llm_instance.model_name if llm_instance else "Not loaded"
     )
 

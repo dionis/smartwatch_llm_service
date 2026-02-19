@@ -47,4 +47,5 @@ class HealthCheckResponse(BaseModel):
     """Health check response."""
     status: str
     model_loaded: bool
+    model_loading: bool = False
     model_name: str

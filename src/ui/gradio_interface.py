@@ -67,6 +67,15 @@ def test_fastapi(image, timestamp, user_id, command, description, fastapi_url):
                     f"  FASTAPI_PORT=8001\n"
                     f"Then update the URL above to http://localhost:8001"
                 )
+            # Check if model is still loading
+            health_data = health.json()
+            if health_data.get("model_loading") and not health_data.get("model_loaded"):
+                return (
+                    f"⏳ The model is still loading, please wait...\n\n"
+                    f"Model: {health_data.get('model_name', 'Unknown')}\n"
+                    f"Check the 'Model Status' indicator above and try again\n"
+                    f"once it shows ✅ Model ready."
+                )
         except requests.exceptions.ConnectionError:
             # Detect if user is using a Lightning.ai public URL instead of localhost
             is_cloud_url = ("cloudspaces" in base_url or "litng.ai" in base_url
@@ -203,6 +212,36 @@ def format_response(result, service_type):
     return output
 
 
+def _check_model_status(fastapi_url):
+    """
+    Check the model loading status from the FastAPI health endpoint.
+
+    Args:
+        fastapi_url: FastAPI server URL
+
+    Returns:
+        Formatted status string with emoji indicator
+    """
+    try:
+        base_url = fastapi_url.rstrip("/")
+        resp = requests.get(f"{base_url}/", timeout=3)
+        if resp.status_code == 200:
+            data = resp.json()
+            model_name = data.get("model_name", "Unknown")
+            if data.get("model_loaded"):
+                return f"✅ **Model ready** — `{model_name}` loaded and ready for inference"
+            elif data.get("model_loading"):
+                return f"⏳ **Loading model...** — `{model_name}` is being loaded, please wait"
+            else:
+                return "⚪ **Model not loaded** — Will load on first request"
+        else:
+            return f"⚠️ **Server error** — HTTP {resp.status_code}"
+    except requests.exceptions.ConnectionError:
+        return "🔴 **Server offline** — FastAPI is not running"
+    except Exception as e:
+        return f"⚠️ **Error** — {str(e)}"
+
+
 def create_interface():
     """Create and configure the Gradio interface."""
 
@@ -304,6 +343,13 @@ def create_interface():
                 # Test button
                 test_button = gr.Button("Test Service", variant="primary", size="lg")
 
+                # Model status indicator
+                gr.Markdown("### Model Status")
+                model_status = gr.Markdown(
+                    value="⏳ **Checking model status...**"
+                )
+                refresh_status_btn = gr.Button("🔄 Refresh Status", size="sm")
+
                 # Output
                 gr.Markdown("### Response")
                 output_text = gr.Textbox(
@@ -323,6 +369,24 @@ def create_interface():
             fn=update_config_visibility,
             inputs=[service_type],
             outputs=[fastapi_config, grpc_config]
+        )
+
+        # Model status refresh handler
+        def refresh_model_status(url):
+            return _check_model_status(url)
+
+        refresh_status_btn.click(
+            fn=refresh_model_status,
+            inputs=[fastapi_url],
+            outputs=[model_status]
+        )
+
+        # Auto-check status on page load
+        demo.load(
+            fn=refresh_model_status,
+            inputs=[fastapi_url],
+            outputs=[model_status],
+            every=5  # Auto-refresh every 5 seconds
         )
 
         # Handle test button click
