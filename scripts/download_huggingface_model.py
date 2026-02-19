@@ -11,7 +11,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from transformers import AutoTokenizer, AutoProcessor, AutoModelForVision2Seq, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoProcessor, AutoModelForCausalLM
 from PIL import Image
 import torch
 import os
@@ -87,6 +87,10 @@ def download_model(model_type: str, device: str = "cpu"):
         print(f"  This may take several minutes depending on model size...")
 
         if use_vision2seq:
+            try:
+                from transformers import AutoModelForVision2Seq
+            except ImportError:
+                from transformers import AutoModelForCausalLM as AutoModelForVision2Seq
             model = AutoModelForVision2Seq.from_pretrained(
                 model_name,
                 trust_remote_code=True,
