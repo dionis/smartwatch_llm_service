@@ -47,9 +47,28 @@ def generate_protos():
 
 
 def run_gradio():
-    """Run Gradio interface."""
+    """Run Gradio interface with FastAPI server in background."""
+    import threading
+    import uvicorn
+    from src.api.fastapi_server import app as fastapi_app
     from src.ui.gradio_interface import launch
-    launch(server_name="0.0.0.0", server_port=7860, share=False)
+
+    fastapi_port = int(os.getenv("FASTAPI_PORT", "8000"))
+
+    # Start FastAPI in a background daemon thread
+    config = uvicorn.Config(
+        fastapi_app,
+        host="0.0.0.0",
+        port=fastapi_port,
+        log_level="warning"  # less verbose to keep Gradio logs clean
+    )
+    server = uvicorn.Server(config)
+    fastapi_thread = threading.Thread(target=server.run, daemon=True)
+    fastapi_thread.start()
+    print(f"FastAPI server running in background on port {fastapi_port}")
+
+    gradio_port = int(os.getenv("GRADIO_PORT", "7860"))
+    launch(server_name="0.0.0.0", server_port=gradio_port, share=False)
 
 
 def main():
