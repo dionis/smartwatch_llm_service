@@ -6,34 +6,58 @@ Backend service for processing smartwatch screenshots using multimodal LLMs. The
 
 - 🚀 **Triple Interface**: FastAPI (REST), gRPC, and Gradio (Web UI) support
 - 🎨 **User-Friendly UI**: Gradio web interface for easy testing of both services
-- 🧠 **Flexible LLM Backend**: Support for multiple multimodal models (Phi-4, Gemma, Gemma 3n, LLaVA, etc.)
+- 🧠 **Flexible LLM Backend**: Support for multiple multimodal models (Phi-4, Gemma, Gemma 3n, LLaVA, Moondream, Ollama)
 - 🔄 **Easy Model Switching**: Change models via environment variables without code changes
 - ⚡ **Lightning.ai Ready**: Configured for deployment on Lightning.ai platform
+- 📊 **Model Status Indicator**: Real-time model loading status in the Gradio UI
 - 🧪 **Test Clients**: Comprehensive test clients for both FastAPI and gRPC
-- 📊 **Inference Tracking**: Built-in timing for LLM inference
+- � **Inference Tracking**: Built-in timing for LLM inference
 
 ## Supported Models
 
-### HuggingFace Models
-- **Phi-4** (microsoft/phi-4) - ~7B params
-- **Gemma** (google/gemma-3-2b-vision) - ~2B params
-- **Gemma 3n** (google/gemma-3n-vision)
-- **LLaVA** (llava-hf/llava-1.5-7b-hf) - ~7B params
-- **Moondream** (vikhyatk/moondream2) - ~1.8B params
-- Custom models via HuggingFace model identifiers
+| Model | Type | Params | RAM Required | Best For |
+|-------|------|--------|-------------|----------|
+| **Moondream** (vikhyatk/moondream2) | HuggingFace | ~1.8B | ~4 GB | ⭐ Lightweight / Cloud |
+| **Gemma** (google/gemma-3-2b-vision) | HuggingFace | ~2B | ~6 GB | Balanced |
+| **Gemma 3n** (google/gemma-3n-vision) | HuggingFace | — | ~8 GB | Newer architecture |
+| **LLaVA** (llava-hf/llava-1.5-7b-hf) | HuggingFace | ~7B | ~14 GB | High accuracy |
+| **Phi-4** (microsoft/phi-4) | HuggingFace | ~7B | ~28 GB | Full featured |
+| **Ollama** (any vision model) | Ollama | — | Varies | ⭐ Production |
 
-### Ollama Models (Recommended)
-- **Phi-4** - Optimized version via Ollama
-- **LLaVA** - Various sizes (7B, 13B)
-- **BakLLaVA** - LLaVA with Mistral backbone
-- Any Ollama-compatible vision model
+> **💡 Recommendation:** Use **Moondream** for development/cloud (low memory), **Ollama** for production (optimized inference).
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Install System Dependencies
+
+The project requires some system-level libraries (e.g., `libvips` for image processing).
+
+**On Lightning.ai / Ubuntu / Debian:**
+```bash
+# Run the automated script
+bash scripts/install_system_deps.sh
+
+# Or install manually
+apt-get update && apt-get install -y libvips42 libvips-dev
+```
+
+**On Fedora / RHEL:**
+```bash
+sudo dnf install -y vips vips-devel
+```
+
+**On macOS:**
+```bash
+brew install vips
+```
+
+**On Windows:**
+> `libvips` is not required on Windows — `pyvips` includes pre-built binaries.
+
+### 2. Install Python Dependencies
 
 ```bash
-# Quick setup script
+# Quick setup (installs system deps + Python deps + generates protos)
 bash quick_start.sh
 
 # Or manually with uv
@@ -41,7 +65,22 @@ uv sync
 uv run python main.py generate-protos
 ```
 
-### 2. Install Models
+### 3. Configure Environment
+
+Create a `.env` file from the example:
+
+```bash
+cp .env.example .env
+```
+
+Default `.env` settings (recommended for Lightning.ai):
+```bash
+LLM_MODEL_TYPE=moondream     # Lightweight model (~4 GB RAM)
+FASTAPI_PORT=8001            # Port 8000 is reserved on Lightning.ai
+DEVICE=cpu                   # Use 'cuda' for GPU
+```
+
+### 4. Install Models
 
 **Option A: Automated Installation (Recommended)**
 
@@ -79,17 +118,25 @@ echo "DEVICE=cpu" >> .env  # or cuda
 
 See [scripts/README.md](scripts/README.md) for detailed model installation guide.
 
-### 3. Run the Service
+### 5. Run the Service
 
 ```bash
-# Start FastAPI server
-uv run python main.py fastapi
-
-# Or start Gradio UI for testing
+# Start Gradio UI (launches FastAPI internally + web interface)
 uv run python main.py gradio
+
+# Or start FastAPI server standalone
+uv run python main.py fastapi
 ```
 
+> **📍 Note:** On Lightning.ai, the Gradio UI will be available through the public URL on port 8080. FastAPI runs internally on port 8001 (configurable via `FASTAPI_PORT`).
+
 ## Installation
+
+### Prerequisites
+
+- **Python >= 3.11**
+- **uv** (recommended) or pip
+- **System libraries**: `libvips` (see [System Dependencies](#1-install-system-dependencies) above)
 
 ### Using uv (Recommended)
 
@@ -120,14 +167,16 @@ python main.py generate-protos
 ### Running FastAPI Server
 
 ```bash
-# Using uv
+# Using uv (default port: 8001)
 uv run python main.py fastapi
 
 # Or directly with uvicorn
-uv run uvicorn src.api.fastapi_server:app --host 0.0.0.0 --port 8000
+uv run uvicorn src.api.fastapi_server:app --host 0.0.0.0 --port 8001
 
-# Access interactive docs at: http://localhost:8000/docs
+# Access interactive docs at: http://localhost:8001/docs
 ```
+
+> **⚠️ Lightning.ai:** Port 8000 is reserved by the platform. Always use port 8001+ (set `FASTAPI_PORT=8001` in `.env`).
 
 ### Running gRPC Server
 
@@ -152,9 +201,20 @@ The Gradio interface provides an easy-to-use web UI for testing both FastAPI and
 ### Running on Lightning.ai
 
 ```bash
-# Deploy to Lightning.ai
+# Option 1: Deploy via Lightning CLI
 lightning run app lightning_app.py --cloud
+
+# Option 2: Run directly in a Lightning.ai Cloudspace terminal
+bash scripts/install_system_deps.sh   # Install libvips (once)
+uv sync                                # Install Python deps
+uv run python main.py gradio           # Start Gradio + FastAPI
 ```
+
+**Lightning.ai important notes:**
+- Port **8000** is **reserved** by the platform — use `FASTAPI_PORT=8001`
+- The Gradio UI auto-starts FastAPI in a background thread
+- Model loading is non-blocking; the status indicator shows loading progress
+- Use **moondream** (default) to avoid OOM — it only needs ~4 GB RAM
 
 ## Configuration
 
@@ -164,7 +224,7 @@ Create a `.env` file (see `.env.example` for template):
 
 ```bash
 # Model configuration
-LLM_MODEL_TYPE=ollama        # ollama, phi4, gemma, gemma3n, llava, moondream
+LLM_MODEL_TYPE=moondream     # moondream, ollama, phi4, gemma, gemma3n, llava
 LLM_MODEL_NAME=phi4          # Model name (for ollama: phi4, llava, bakllava, etc.)
 
 # Ollama configuration (only for LLM_MODEL_TYPE=ollama)
@@ -174,7 +234,7 @@ OLLAMA_HOST=http://localhost:11434
 DEVICE=cpu                   # Use 'cuda' for GPU
 
 # Service ports
-FASTAPI_PORT=8000
+FASTAPI_PORT=8001            # ⚠️ Use 8001+ on Lightning.ai (8000 is reserved)
 GRPC_PORT=50051
 ```
 
@@ -251,7 +311,7 @@ uv run python client/test_grpc_client.py path/to/smartwatch_image.png
 ### FastAPI (REST)
 
 ```bash
-curl -X POST "http://localhost:8000/process" \
+curl -X POST "http://localhost:8001/process" \
   -F "image=@smartwatch.png" \
   -F "timestamp=2026-02-01T10:30:00" \
   -F "user_id=user123" \
@@ -278,18 +338,29 @@ curso_platzy/
 │   ├── llm/                 # LLM implementations
 │   │   ├── base.py          # Abstract base class
 │   │   ├── phi4.py          # Phi-4 implementation
-│   │   ├── generic_multimodal.py
+│   │   ├── moondream.py     # Moondream2 implementation
+│   │   ├── generic_multimodal.py  # Gemma, LLaVA, etc.
+│   │   ├── ollama.py        # Ollama backend
 │   │   └── factory.py       # Model factory
 │   ├── ui/                  # User interface
 │   │   └── gradio_interface.py  # Gradio web UI
 │   └── utils/               # Utility functions
+├── scripts/                 # Setup & utility scripts
+│   ├── install_system_deps.sh   # System dependencies (libvips, etc.)
+│   ├── install_models.sh        # Model installation
+│   ├── install_models.ps1       # Model installation (Windows)
+│   ├── setup_ollama.sh          # Ollama setup
+│   ├── download_huggingface_model.py
+│   └── verify_models.py
 ├── client/                  # Test clients
 │   ├── test_fastapi_client.py
 │   └── test_grpc_client.py
 ├── tests/                   # Unit tests
+├── .env.example             # Environment template
 ├── lightning_app.py         # Lightning.ai configuration
 ├── main.py                  # Main entry point
-└── pyproject.toml          # Dependencies
+├── quick_start.sh           # Full setup script
+└── pyproject.toml           # Dependencies
 ```
 
 ## Development
@@ -327,12 +398,20 @@ Both services return JSON with the following structure:
 
 ## Requirements
 
+### System Dependencies
+- **libvips** — Required by `pyvips` for image processing (Moondream model)
+  - Ubuntu/Debian: `apt-get install libvips-dev`
+  - Fedora/RHEL: `dnf install vips-devel`
+  - macOS: `brew install vips`
+  - Windows: Not needed (bundled with `pyvips`)
+
+### Python Dependencies
 - Python >= 3.11
 - PyTorch (CPU or CUDA)
 - FastAPI + Uvicorn
 - gRPC + gRPC Tools
-- Gradio (for Web UI)
-- Transformers
+- Gradio >= 5.0 (Web UI)
+- Transformers + einops + timm + pyvips
 - Lightning (for deployment)
 - Ollama (optional, for optimized inference)
 
@@ -372,9 +451,24 @@ ollama list
 
 ## Troubleshooting
 
+### System Dependencies
+- **`libvips.so.42: cannot open shared object file`**: Install libvips system library:
+  ```bash
+  # Lightning.ai / Ubuntu / Debian
+  apt-get update && apt-get install -y libvips42 libvips-dev
+  # Or use the script
+  bash scripts/install_system_deps.sh
+  ```
+- **`No module named 'einops'`** / **`No module named 'timm'`**: Run `uv sync` to install all Python dependencies.
+
+### Lightning.ai / Port Issues
+- **Port 8000 not reachable**: Port 8000 is **reserved** by Lightning.ai. Set `FASTAPI_PORT=8001` in `.env`.
+- **Gradio can't reach FastAPI**: In the Gradio UI, use `http://localhost:8001` (not the public Lightning URL).
+- **Process killed (OOM)**: Use a smaller model. Set `LLM_MODEL_TYPE=moondream` in `.env` (~4 GB RAM).
+
 ### Model Download Issues
-- **Slow downloads**: HuggingFace models are large (4-14GB). Consider using Ollama for faster setup.
-- **Out of memory**: Try smaller models (moondream, gemma) or use Ollama's quantized versions.
+- **Slow downloads**: HuggingFace models are large (4-14 GB). Consider using Ollama for faster setup.
+- **Out of memory**: Try smaller models (moondream ~4 GB, gemma ~6 GB) or use Ollama's quantized versions.
 - **CUDA errors**: Set `DEVICE=cpu` in `.env` if GPU is unavailable.
 
 ### Ollama Issues
@@ -388,11 +482,12 @@ ollama list
 
 1. **Use Ollama for production**: 2-3x faster inference with lower memory usage
 2. **Choose appropriate model size**:
-   - Development/Testing: moondream (~1.8B)
-   - Balanced: phi4, llava (~7B)
-   - High accuracy: llava:13b (~13B)
+   - Cloud/Testing: **moondream** (~1.8B, ~4 GB RAM) ⭐
+   - Balanced: gemma (~2B, ~6 GB RAM)
+   - High accuracy: llava, phi4 (~7B, ~14-28 GB RAM)
 3. **Use GPU when available**: Set `DEVICE=cuda` (HuggingFace only)
 4. **Pre-download models**: Avoid delays on first request
+5. **On Lightning.ai**: Moondream is the recommended default to avoid OOM kills
 
 ## License
 
