@@ -212,7 +212,7 @@ def create_interface():
     default_command = "extract_metrics"
     default_description = "Extract all visible health metrics from this smartwatch screenshot"
 
-    with gr.Blocks(title="Smartwatch LLM Service - Tester", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Smartwatch LLM Service - Tester") as demo:
         gr.Markdown(
             """
             # 🔬 Smartwatch LLM Service Tester
@@ -370,7 +370,8 @@ def launch(server_name="0.0.0.0", server_port=7860, share=False):
     demo.launch(
         server_name=server_name,
         server_port=server_port,
-        share=share
+        share=share,
+        theme=gr.themes.Soft()
     )
 
 
