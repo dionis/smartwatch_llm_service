@@ -3,7 +3,6 @@ import json
 from typing import Dict, Any
 from PIL import Image
 import torch
-from transformers import AutoModelForCausalLM
 
 from .base import BaseLLM
 
@@ -11,8 +10,8 @@ from .base import BaseLLM
 class MoondreamLLM(BaseLLM):
     """Moondream2 lightweight vision-language model (~1.8B params, ~4GB RAM)."""
 
-    # Pin to a specific revision for stability
-    DEFAULT_REVISION = "2025-06-21"
+    # Use the 2025-01-09 revision which is compatible with standard transformers
+    DEFAULT_REVISION = "2025-01-09"
 
     def __init__(
         self,
@@ -30,22 +29,31 @@ class MoondreamLLM(BaseLLM):
         """
         super().__init__(model_name, device)
         self.revision = revision or self.DEFAULT_REVISION
+        self.tokenizer = None
 
     def load_model(self) -> None:
-        """Load the Moondream2 model."""
+        """Load the Moondream2 model using its native API."""
         try:
-            # Moondream2 uses its own custom architecture via trust_remote_code
-            # It does NOT use a separate processor — the model handles everything
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+
             dtype = torch.float16 if "cuda" in self.device else torch.float32
+
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name,
+                revision=self.revision,
+                trust_remote_code=True
+            )
+
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 revision=self.revision,
                 trust_remote_code=True,
-                dtype=dtype,
-                device_map={"": self.device}
-            )
-            # Moondream doesn't use a separate processor, set a dummy to satisfy BaseLLM
-            self.processor = True
+                torch_dtype=dtype,
+                attn_implementation=None,
+            ).to(self.device)
+
+            # Set processor for BaseLLM compatibility
+            self.processor = self.tokenizer
             print(f"Moondream2 model loaded successfully on {self.device} (revision: {self.revision})")
         except Exception as e:
             print(f"Error loading Moondream2 model: {e}")
@@ -58,7 +66,7 @@ class MoondreamLLM(BaseLLM):
         system_prompt: str = ""
     ) -> Dict[str, Any]:
         """
-        Process image with Moondream2 model using its native query API.
+        Process image with Moondream2 model.
 
         Args:
             image: PIL Image object
@@ -75,9 +83,11 @@ class MoondreamLLM(BaseLLM):
             # Construct full prompt
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
-            # Use Moondream's native query API
-            result = self.model.query(image, full_prompt)
-            answer = result.get("answer", "") if isinstance(result, dict) else str(result)
+            # Encode the image using moondream's built-in encoder
+            enc_image = self.model.encode_image(image)
+
+            # Use moondream's answer_question API
+            answer = self.model.answer_question(enc_image, full_prompt, self.tokenizer)
 
             # Try to extract JSON from the answer
             try:
@@ -103,6 +113,7 @@ class MoondreamLLM(BaseLLM):
             del self.model
             self.model = None
             self.processor = None
+            self.tokenizer = None
 
             if self.device.startswith("cuda"):
                 torch.cuda.empty_cache()
