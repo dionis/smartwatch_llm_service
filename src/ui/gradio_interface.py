@@ -3,6 +3,7 @@ import gradio as gr
 import requests
 import io
 import json
+import os
 from datetime import datetime
 from PIL import Image
 import grpc
@@ -50,9 +51,35 @@ def test_fastapi(image, timestamp, user_id, command, description, fastapi_url):
             'description': description
         }
 
+        # Normalize URL: remove trailing slash
+        base_url = fastapi_url.rstrip("/")
+
+        # Verify server is reachable before sending image
+        try:
+            health = requests.get(f"{base_url}/", timeout=5)
+            if health.status_code != 200 or "model_loaded" not in health.text:
+                return (
+                    f"Error: The server at {base_url} is not the FastAPI service.\n"
+                    f"Response: {health.text[:200]}\n\n"
+                    f"Make sure the FastAPI server is running:\n"
+                    f"  uv run python main.py fastapi\n\n"
+                    f"If port 8000 is taken (e.g. on Lightning.ai), set a different port in .env:\n"
+                    f"  FASTAPI_PORT=8001\n"
+                    f"Then update the URL above to http://localhost:8001"
+                )
+        except requests.exceptions.ConnectionError:
+            return (
+                f"Error: Could not connect to FastAPI server at {base_url}\n\n"
+                f"Start the server in a separate terminal:\n"
+                f"  uv run python main.py fastapi\n\n"
+                f"If port 8000 is taken (e.g. on Lightning.ai), set in .env:\n"
+                f"  FASTAPI_PORT=8001\n"
+                f"Then update the URL above to http://localhost:8001"
+            )
+
         # Make request to FastAPI
         response = requests.post(
-            f"{fastapi_url}/process",
+            f"{base_url}/process",
             files=files,
             data=data,
             timeout=60
@@ -230,9 +257,10 @@ def create_interface():
                 # FastAPI configuration
                 with gr.Group(visible=True) as fastapi_config:
                     gr.Markdown("#### FastAPI Configuration")
+                    _fastapi_port = os.getenv("FASTAPI_PORT", "8000")
                     fastapi_url = gr.Textbox(
                         label="FastAPI URL",
-                        value="http://localhost:8000",
+                        value=f"http://localhost:{_fastapi_port}",
                         placeholder="http://localhost:8000"
                     )
 

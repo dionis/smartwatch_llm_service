@@ -1,10 +1,18 @@
 """Main entry point for the smartwatch LLM service."""
 import sys
 import argparse
+import os
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not required, use system env vars
 
 
 def run_fastapi():
@@ -12,10 +20,12 @@ def run_fastapi():
     import uvicorn
     from src.api.fastapi_server import app
 
+    port = int(os.getenv("FASTAPI_PORT", "8000"))
+    print(f"FastAPI starting on port {port}")
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=port,
         log_level="info"
     )
 
@@ -23,7 +33,10 @@ def run_fastapi():
 def run_grpc():
     """Run gRPC server."""
     from src.grpc_service.server import serve
-    serve(port=50051)
+
+    port = int(os.getenv("GRPC_PORT", "50051"))
+    print(f"gRPC starting on port {port}")
+    serve(port=port)
 
 
 def generate_protos():
