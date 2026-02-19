@@ -3,7 +3,7 @@ import json
 from typing import Dict, Any
 from PIL import Image
 import torch
-from transformers import AutoProcessor, AutoModelForCausalLM, AutoModelForVision2Seq
+from transformers import AutoProcessor, AutoModelForCausalLM
 
 from .base import BaseLLM
 
@@ -37,10 +37,14 @@ class GenericMultimodalLLM(BaseLLM):
             )
 
             # Choose appropriate model class
-            model_class = (
-                AutoModelForVision2Seq if self.use_vision2seq
-                else AutoModelForCausalLM
-            )
+            if self.use_vision2seq:
+                try:
+                    from transformers import AutoModelForVision2Seq
+                except ImportError:
+                    from transformers import AutoModelForCausalLM as AutoModelForVision2Seq
+                model_class = AutoModelForVision2Seq
+            else:
+                model_class = AutoModelForCausalLM
 
             self.model = model_class.from_pretrained(
                 self.model_name,
