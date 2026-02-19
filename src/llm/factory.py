@@ -16,7 +16,6 @@ class LLMFactory:
         "phi4": {
             "class": Phi4LLM,
             "model_name": "microsoft/phi-4",
-            "use_vision2seq": False
         },
         "gemma": {
             "class": GenericMultimodalLLM,
