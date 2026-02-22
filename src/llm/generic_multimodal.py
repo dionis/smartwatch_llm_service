@@ -48,7 +48,7 @@ class GenericMultimodalLLM(BaseLLM):
 
             self.model = model_class.from_pretrained(
                 self.model_name,
-                torch_dtype=torch.float16 if "cuda" in self.device else torch.float32,
+                dtype=torch.float16 if "cuda" in self.device else torch.float32,
                 device_map=self.device,
                 trust_remote_code=True
             )

@@ -3,9 +3,9 @@ import json
 import os
 import sys
 from typing import Dict, Any
+import importlib.util
 from PIL import Image
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from .base import BaseLLM
 
@@ -13,10 +13,12 @@ from .base import BaseLLM
 class MoondreamLLM(BaseLLM):
     """Moondream2 lightweight vision-language model (~1.8B params, ~4GB RAM).
 
-    This implementation loads the model directly using Moondream's native
-    MoondreamModel class instead of AutoModelForCausalLM, which avoids
-    compatibility issues with newer versions of transformers (5.x+) that
-    require 'all_tied_weights_keys' on PreTrainedModel subclasses.
+    This implementation loads the model manually using a 'virtual package'
+    strategy. This avoids both:
+    1. 'attempted relative import' errors (by registering the snapshot
+       as a proper Python package in sys.modules).
+    2. 'all_tied_weights_keys' errors in newer transformers (by bypassing
+       AutoModelForCausalLM entirely).
     """
 
     DEFAULT_REVISION = "2025-01-09"
@@ -40,36 +42,81 @@ class MoondreamLLM(BaseLLM):
         self.tokenizer = None
 
     def load_model(self) -> None:
-        """Load Moondream2 using transformers Auto classes.
+        """Load Moondream2 using a virtual package strategy.
         
-        This handles remote code and package contexts correctly, avoiding 
-        relative import issues.
+        This is the most robust way to load Moondream2 as it bypasses
+        problematic logic in transformers while ensuring remote code
+        imports resolve correctly.
         """
         try:
+            from huggingface_hub import snapshot_download
+            from safetensors.torch import load_file as load_safetensors
+
+            dtype = torch.float16 if "cuda" in self.device else torch.float32
+
+            # Step 1: Download the model snapshot
             print(f"Loading Moondream2 (revision: {self.revision})...")
-            
-            # Using AutoModelForCausalLM is the standard way and handles trust_remote_code correctly
-            self.model = AutoModelForCausalLM.from_pretrained(
+            model_path = snapshot_download(
                 self.model_name,
                 revision=self.revision,
-                trust_remote_code=True,
-                torch_dtype=torch.float16 if "cuda" in self.device else torch.float32,
-                device_map=self.device
             )
+            print(f"Model files cached at: {model_path}")
+
+            # Step 2: Create a Virtual Package
+            # We register the model directory as a package named 'moondream_package'
+            # to allow relative imports inside the model code to work properly.
+            package_name = "moondream_repo"
             
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name,
-                revision=self.revision,
-                trust_remote_code=True
+            # Setup the module spec
+            init_file = os.path.join(model_path, "__init__.py")
+            # If __init__.py doesn't exist, we just need a dummy spec for the directory
+            spec = importlib.util.spec_from_file_location(
+                package_name, 
+                init_file if os.path.exists(init_file) else os.path.join(model_path, "moondream.py")
             )
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[package_name] = module
+            
+            # Also add to sys.path to support absolute imports of submodules
+            if model_path not in sys.path:
+                sys.path.insert(0, model_path)
 
-            self.model.eval()
+            # Step 3: Import classes from the snapshot directory
+            # We use importlib to load specifically from the snapshot path
+            def load_from_snapshot(name, filename):
+                m_spec = importlib.util.spec_from_file_location(
+                    f"{package_name}.{name}", 
+                    os.path.join(model_path, filename)
+                )
+                m = importlib.util.module_from_spec(m_spec)
+                # This is CRITICAL for relative imports:
+                m.__package__ = package_name 
+                sys.modules[f"{package_name}.{name}"] = m
+                m_spec.loader.exec_module(m)
+                return m
 
-            # Set processor for BaseLLM compatibility
+            config_mod = load_from_snapshot("config", "config.py")
+            model_mod = load_from_snapshot("moondream", "moondream.py")
+
+            # Load the vision module as well since moondream.py depends on it relatively
+            load_from_snapshot("vision", "vision.py")
+
+            # Step 4: Instantiate and load weights
+            config = config_mod.MoondreamConfig()
+            self.model = model_mod.MoondreamModel(config, dtype=dtype)
+
+            weights_file = os.path.join(model_path, "model.safetensors")
+            if os.path.exists(weights_file):
+                state_dict = load_safetensors(weights_file)
+                self.model.load_state_dict(state_dict, strict=False)
+            else:
+                raise FileNotFoundError(f"model.safetensors not found in {model_path}")
+
+            self.model = self.model.to(self.device).eval()
+            self.tokenizer = self.model.tokenizer
             self.processor = self.tokenizer
 
-            print(f"Moondream2 model loaded successfully on {self.device} "
-                  f"(revision: {self.revision})")
+            print(f"Moondream2 model loaded successfully on {self.device}")
 
         except Exception as e:
             print(f"Error loading Moondream2 model: {e}")

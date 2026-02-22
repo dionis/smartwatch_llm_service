@@ -23,7 +23,7 @@ class Phi4LLM(BaseLLM):
             )
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
-                torch_dtype=torch.float16 if "cuda" in self.device else torch.float32,
+                dtype=torch.float16 if "cuda" in self.device else torch.float32,
                 device_map=self.device,
                 trust_remote_code=True
             )
