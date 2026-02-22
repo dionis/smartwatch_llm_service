@@ -42,15 +42,16 @@ class MoondreamLLM(BaseLLM):
         self.tokenizer = None
 
     def load_model(self) -> None:
-        """Load Moondream2 using a virtual package strategy.
+        """Load Moondream2 using a robust virtual package strategy.
         
-        This is the most robust way to load Moondream2 as it bypasses
-        problematic logic in transformers while ensuring remote code
-        imports resolve correctly.
+        This dynamically registers all files in the model snapshot as
+        submodules of a virtual package, ensuring all relative imports
+        work correctly regardless of the model version.
         """
         try:
             from huggingface_hub import snapshot_download
             from safetensors.torch import load_file as load_safetensors
+            import types
 
             dtype = torch.float16 if "cuda" in self.device else torch.float32
 
@@ -62,46 +63,51 @@ class MoondreamLLM(BaseLLM):
             )
             print(f"Model files cached at: {model_path}")
 
-            # Step 2: Create a Virtual Package
-            # We register the model directory as a package named 'moondream_package'
-            # to allow relative imports inside the model code to work properly.
+            # Step 2: Establish the Virtual Package
             package_name = "moondream_repo"
             
-            # Setup the module spec
-            init_file = os.path.join(model_path, "__init__.py")
-            # If __init__.py doesn't exist, we just need a dummy spec for the directory
-            spec = importlib.util.spec_from_file_location(
-                package_name, 
-                init_file if os.path.exists(init_file) else os.path.join(model_path, "moondream.py")
-            )
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[package_name] = module
+            # Create a proper package module with __path__
+            pkg_mod = types.ModuleType(package_name)
+            pkg_mod.__path__ = [model_path]
+            pkg_mod.__file__ = os.path.join(model_path, "__init__.py")
+            pkg_mod.__package__ = package_name
+            sys.modules[package_name] = pkg_mod
             
-            # Also add to sys.path to support absolute imports of submodules
-            if model_path not in sys.path:
-                sys.path.insert(0, model_path)
-
-            # Step 3: Import classes from the snapshot directory
-            # We use importlib to load specifically from the snapshot path
-            def load_from_snapshot(name, filename):
-                m_spec = importlib.util.spec_from_file_location(
-                    f"{package_name}.{name}", 
-                    os.path.join(model_path, filename)
+            # Step 3: Dynamically register all submodules
+            # We find all .py files and register them as moondream_repo.name
+            py_files = [f for f in os.listdir(model_path) if f.endswith(".py") and f != "__init__.py"]
+            
+            submodules = {}
+            for py_file in py_files:
+                name = py_file[:-3]  # remove .py
+                sub_name = f"{package_name}.{name}"
+                
+                spec = importlib.util.spec_from_file_location(
+                    sub_name, 
+                    os.path.join(model_path, py_file)
                 )
-                m = importlib.util.module_from_spec(m_spec)
-                # This is CRITICAL for relative imports:
-                m.__package__ = package_name 
-                sys.modules[f"{package_name}.{name}"] = m
-                m_spec.loader.exec_module(m)
-                return m
+                m = importlib.util.module_from_spec(spec)
+                m.__package__ = package_name
+                sys.modules[sub_name] = m
+                submodules[name] = (m, spec)
 
-            config_mod = load_from_snapshot("config", "config.py")
-            model_mod = load_from_snapshot("moondream", "moondream.py")
+            # Step 4: Execute modules (after all are registered to support mutual imports)
+            for name, (m, spec) in submodules.items():
+                try:
+                    spec.loader.exec_module(m)
+                except Exception as e:
+                    # Some files might not be intended for direct execution or
+                    # might have complex dependencies; we continue and hope
+                    # the core ones (moondream, config) work.
+                    print(f"  Note: skipping/failed to exec {name}: {e}")
 
-            # Load the vision module as well since moondream.py depends on it relatively
-            load_from_snapshot("vision", "vision.py")
+            # Step 5: Instantiate and load weights
+            if "config" not in submodules or "moondream" not in submodules:
+                raise ImportError("Required modules 'config' or 'moondream' not found in model path")
+                
+            config_mod = submodules["config"][0]
+            model_mod = submodules["moondream"][0]
 
-            # Step 4: Instantiate and load weights
             config = config_mod.MoondreamConfig()
             self.model = model_mod.MoondreamModel(config, dtype=dtype)
 
