@@ -5,6 +5,7 @@ import sys
 from typing import Dict, Any
 from PIL import Image
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from .base import BaseLLM
 
@@ -39,53 +40,30 @@ class MoondreamLLM(BaseLLM):
         self.tokenizer = None
 
     def load_model(self) -> None:
-        """Load Moondream2 using its native MoondreamModel class directly.
-
-        This bypasses AutoModelForCausalLM / PreTrainedModel to avoid the
-        'all_tied_weights_keys' incompatibility with transformers >= 5.x.
+        """Load Moondream2 using transformers Auto classes.
+        
+        This handles remote code and package contexts correctly, avoiding 
+        relative import issues.
         """
         try:
-            from huggingface_hub import snapshot_download
-            from safetensors.torch import load_file as load_safetensors
-
-            dtype = torch.float16 if "cuda" in self.device else torch.float32
-
-            # Step 1: Download the model repo to a local cache directory
-            print(f"Downloading Moondream2 (revision: {self.revision})...")
-            model_path = snapshot_download(
+            print(f"Loading Moondream2 (revision: {self.revision})...")
+            
+            # Using AutoModelForCausalLM is the standard way and handles trust_remote_code correctly
+            self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 revision=self.revision,
+                trust_remote_code=True,
+                torch_dtype=torch.float16 if "cuda" in self.device else torch.float32,
+                device_map=self.device
             )
-            print(f"Model files cached at: {model_path}")
+            
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name,
+                revision=self.revision,
+                trust_remote_code=True
+            )
 
-            # Step 2: Add the model directory to sys.path so we can import
-            #         moondream's own modules (config, moondream, vision, etc.)
-            if model_path not in sys.path:
-                sys.path.insert(0, model_path)
-
-            # Step 3: Import moondream's native classes directly
-            from config import MoondreamConfig
-            from moondream import MoondreamModel
-
-            # Step 4: Create the model with default config and load weights
-            config = MoondreamConfig()
-            self.model = MoondreamModel(config, dtype=dtype)
-
-            # Load safetensors weights
-            weights_file = os.path.join(model_path, "model.safetensors")
-            if os.path.exists(weights_file):
-                state_dict = load_safetensors(weights_file)
-                self.model.load_state_dict(state_dict, strict=False)
-            else:
-                raise FileNotFoundError(
-                    f"model.safetensors not found in {model_path}"
-                )
-
-            self.model = self.model.to(self.device)
             self.model.eval()
-
-            # The MoondreamModel has its own tokenizer
-            self.tokenizer = self.model.tokenizer
 
             # Set processor for BaseLLM compatibility
             self.processor = self.tokenizer
