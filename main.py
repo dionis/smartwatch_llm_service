@@ -88,7 +88,7 @@ def run_gradio():
     print(f"  → Use {fastapi_url} in Gradio (NOT the Lightning.ai public URL)")
 
     gradio_port = int(os.getenv("GRADIO_PORT", "7860"))
-    launch(server_name="0.0.0.0", server_port=gradio_port, share=False)
+    launch(server_name="0.0.0.0", server_port=gradio_port, share=True)
 
 
 def main():
