@@ -489,6 +489,17 @@ ollama list
 4. **Pre-download models**: Avoid delays on first request
 5. **On Lightning.ai**: Moondream is the recommended default to avoid OOM kills
 
+
+## Bibliografy
+
+- [Deploy Phi3.5 Vision API with LitServe](https://lightning.ai/lightning-ai/environments/deploy-phi3-5-vision-api-with-litserve?view=public&section=featured&query=phi4)
+
+- [Run Google Gemma 2B LLM on Cloud GPUs](https://lightning.ai/lightning-ai/environments/run-google-gemma-2b-llm-on-cloud-gpus?view=public&section=featured&query=gemma)
+
+- [Deploy Gemma 3 Multimodal Multilingual model](https://lightning.ai/sitammeur/environments/deploy-gemma-3-multimodal-multilingual-model?view=public&section=featured&query=gemma)
+
+- [Deploy PaliGemma 2 mix Vision-Language model](https://lightning.ai/sitammeur/environments/deploy-paligemma-2-mix-vision-language-model?view=public&section=featured&query=gemma)
+
 ## License
 
 MIT
