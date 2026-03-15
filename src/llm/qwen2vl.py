@@ -3,7 +3,7 @@ import json
 from typing import Dict, Any
 from PIL import Image
 import torch
-from transformers import AutoProcessor, AutoTokenizer
+from transformers import AutoProcessor
 
 from .base import BaseLLM
 
@@ -34,9 +34,6 @@ class Qwen2VL(BaseLLM):
     def load_model(self) -> None:
         """Load Qwen2-VL model with appropriate configuration."""
         try:
-            # Import the model class directly from the model's code
-            from qwen_vl_utils import process_vision_info
-
             # Load processor first
             print(f"Loading Qwen2-VL processor...")
             self.processor = AutoProcessor.from_pretrained(
@@ -44,7 +41,7 @@ class Qwen2VL(BaseLLM):
                 trust_remote_code=True
             )
 
-            # Try to load with the correct vision2seq class
+            # Load the model
             print(f"Loading Qwen2-VL model...")
             try:
                 # Try using the model's built-in loader
@@ -96,38 +93,13 @@ class Qwen2VL(BaseLLM):
             # Construct full prompt
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
-            # Prepare message in Qwen2-VL format
-            message = [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "image": image,
-                        },
-                        {
-                            "type": "text",
-                            "text": full_prompt
-                        }
-                    ],
-                }
-            ]
-
-            # Process inputs
-            text = self.processor.apply_chat_template(
-                message,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-
-            image_inputs, video_inputs = self.processor.process_vision_info(message)
-
+            # Prepare input for Qwen2-VL
+            # The processor handles both text and image inputs
             inputs = self.processor(
-                text=[text],
-                images=image_inputs,
-                videos=video_inputs,
-                padding=True,
-                return_tensors="pt"
+                text=full_prompt,
+                images=image,
+                return_tensors="pt",
+                padding=True
             )
 
             inputs = inputs.to(self.device)
@@ -142,15 +114,10 @@ class Qwen2VL(BaseLLM):
                 )
 
             # Decode response
-            generated_ids = [
-                output_ids[len(inputs["input_ids"][i]):]
-                for i in range(len(inputs["input_ids"]))
-            ]
-            response = self.processor.batch_decode(
-                generated_ids,
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=False
-            )[0]
+            response = self.processor.decode(
+                output_ids[0],
+                skip_special_tokens=True
+            )
 
             # Try to extract JSON from response
             try:
