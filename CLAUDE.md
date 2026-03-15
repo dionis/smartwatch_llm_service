@@ -254,7 +254,7 @@ When changing `smartwatch.proto`:
 
 Create a `.env` file (see `.env.example`):
 ```bash
-LLM_MODEL_TYPE=phi4        # or gemma, gemma3n, llava, moondream, ollama
+LLM_MODEL_TYPE=phi4        # or gemma, gemma3n, llava, moondream, qwen2vl, ollama
 LLM_MODEL_NAME=phi4        # When using ollama: phi4, llava, bakllava, etc.
 DEVICE=cpu                 # or cuda for GPU (not used with ollama)
 OLLAMA_HOST=http://localhost:11434  # Ollama server URL (only for ollama type)
@@ -305,6 +305,13 @@ Key dependencies managed in `pyproject.toml`:
 - **Problem**: `Model 'phi4' not found in Ollama`
 - **Solution**: Pull the model first: `ollama pull phi4`
 - The service will attempt to auto-pull the model, but manual pulling is faster
+
+### Qwen2-VL Configuration Issues
+- **Problem**: `Unrecognized configuration class Qwen2VLConfig for AutoModelForCausalLM`
+- **Solution**: Ensure transformers version is recent (>=4.40+) with `trust_remote_code=True` support
+  - Qwen2-VL has a dedicated implementation in `src/llm/qwen2vl.py`
+  - It automatically selects the correct model class based on available transformers features
+  - Model will load with `Qwen2VLForConditionalGeneration` if available, otherwise falls back to `AutoModel`
 
 ## Performance Considerations
 
