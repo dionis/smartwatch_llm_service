@@ -3,6 +3,9 @@
 
 set -e  # Exit on error
 
+# Navigate to project root (one directory up from scripts/)
+cd "$(dirname "$0")/.."
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
