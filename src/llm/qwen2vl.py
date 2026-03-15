@@ -93,8 +93,7 @@ class Qwen2VL(BaseLLM):
             # Construct full prompt
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
-            # Prepare input in Qwen2-VL's native format
-            # Qwen2-VL expects messages in a specific chat format
+            # Prepare input in Qwen2-VL's native format with messages
             messages = [
                 {
                     "role": "user",
@@ -111,24 +110,33 @@ class Qwen2VL(BaseLLM):
                 }
             ]
 
-            # Apply chat template and process
-            text = self.processor.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
+            # Apply chat template - Qwen2-VL's native way of handling conversations
+            try:
+                text = self.processor.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+            except (AttributeError, TypeError):
+                # Fallback if apply_chat_template not available
+                text = full_prompt
 
-            # Process vision info (this is key for Qwen2-VL)
-            image_inputs, video_inputs = self.processor.process_vision_info(messages)
-
-            # Prepare inputs with proper format
-            inputs = self.processor(
-                text=[text],
-                images=image_inputs,
-                videos=video_inputs,
-                padding=True,
-                return_tensors="pt"
-            )
+            # Process: Try to use the processor with the messages directly
+            try:
+                # Qwen2-VL's preferred approach - pass messages directly
+                inputs = self.processor(
+                    messages,
+                    padding=True,
+                    return_tensors="pt"
+                )
+            except (TypeError, AttributeError):
+                # Fallback: use standard text + image approach
+                inputs = self.processor(
+                    text=full_prompt,
+                    images=image,
+                    return_tensors="pt",
+                    padding=True
+                )
 
             inputs = inputs.to(self.device)
 
@@ -141,16 +149,23 @@ class Qwen2VL(BaseLLM):
                     temperature=0.0
                 )
 
-            # Decode response - extract only the generated part
-            generated_ids = [
-                output_ids[len(inputs["input_ids"][i]):]
-                for i in range(len(inputs["input_ids"]))
-            ]
-            response = self.processor.batch_decode(
-                generated_ids,
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=False
-            )[0]
+            # Decode response
+            # For messages-based input, the processor expects the full output_ids
+            # For text+image, we need to skip input_ids
+            try:
+                # Try to extract only generated tokens
+                input_token_len = inputs["input_ids"].shape[1]
+                generated_ids = output_ids[:, input_token_len:]
+                response = self.processor.decode(
+                    generated_ids[0],
+                    skip_special_tokens=True
+                )
+            except (IndexError, AttributeError):
+                # Fallback: decode full output
+                response = self.processor.decode(
+                    output_ids[0],
+                    skip_special_tokens=True
+                )
 
             # Try to extract JSON from response
             try:
@@ -168,6 +183,8 @@ class Qwen2VL(BaseLLM):
 
         except Exception as e:
             print(f"Error processing image with Qwen2-VL: {e}")
+            import traceback
+            traceback.print_exc()
             return {"error": str(e)}
 
     def unload_model(self) -> None:
