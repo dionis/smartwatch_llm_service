@@ -38,6 +38,10 @@ MODEL_CONFIGS = {
     "moondream": {
         "model_name": "vikhyatk/moondream2",
         "use_vision2seq": False
+    },
+     "qwen2-vL-2b-instruct": {
+        "model_name": "Qwen/Qwen2-VL-2B-Instruct",
+        "use_vision2seq": False
     }
 }
 
