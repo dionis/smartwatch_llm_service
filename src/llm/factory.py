@@ -41,6 +41,11 @@ class LLMFactory:
             "class": OllamaLLM,
             "model_name": "phi4",
             "host": "http://localhost:11434"
+        },
+        "qwen2vl": {
+            "class": GenericMultimodalLLM,
+            "model_name": "Qwen/Qwen2-VL-2B-Instruct",
+            "use_vision2seq": False
         }
     }
 
@@ -55,7 +60,7 @@ class LLMFactory:
         Create an LLM instance.
 
         Args:
-            model_type: Predefined model type (phi4, gemma, gemma3n, llava, moondream, ollama)
+            model_type: Predefined model type (phi4, gemma, gemma3n, llava, moondream, qwen2vl, ollama)
             model_name: Custom model name from HuggingFace
             device: Device to run inference on
 

@@ -17,7 +17,7 @@ The project is designed for deployment on **Lightning.ai** platform and uses **u
 The LLM implementation uses a **Factory Pattern** (`src/llm/factory.py`) to allow easy switching between different multimodal models:
 - Models can be changed via environment variables (`LLM_MODEL_TYPE`, `LLM_MODEL_NAME`)
 - All models inherit from `BaseLLM` abstract class
-- Predefined models: Phi-4, Gemma, Gemma 3n, LLaVA, Moondream, Ollama
+- Predefined models: Phi-4, Gemma, Gemma 3n, LLaVA, Moondream, Qwen2-VL, Ollama
 - Custom models can be loaded via HuggingFace identifiers or through Ollama
 
 #### Available Predefined Models
@@ -29,6 +29,7 @@ The LLM implementation uses a **Factory Pattern** (`src/llm/factory.py`) to allo
 | `gemma3n` | `google/gemma-3n-vision` | Google Gemma 3n vision model | Variable |
 | `llava` | `llava-hf/llava-1.5-7b-hf` | LLaVA 1.5 model | ~7B |
 | `moondream` | `vikhyatk/moondream2` | Moondream2 compact vision model | ~1.8B |
+| `qwen2vl` | `Qwen/Qwen2-VL-2B-Instruct` | Qwen2 Vision Language 2B model | ~2B |
 | `ollama` | Managed by Ollama | Phi-4 via Ollama (local deployment) | Variable |
 
 To use a specific model:

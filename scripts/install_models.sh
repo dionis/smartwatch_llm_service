@@ -91,7 +91,7 @@ install_huggingface() {
     echo "2) gemma (~2B params, smaller)"
     echo "3) llava (~7B params)"
     echo "4) moondream (~1.8B params, smallest)"
-    echo "5) qwen2-vL-2b-instruct (~2B params, smaller)"
+    echo "5) qwen2vl (~2B params, Qwen2-VL)"
     echo "6) All models"
     echo "7) Custom model"
     echo ""
@@ -111,7 +111,7 @@ install_huggingface() {
             uv run python scripts/download_huggingface_model.py --model moondream
             ;;
         5)
-            uv run python scripts/download_huggingface_model.py --model qwen2-vL-2b-instruct
+            uv run python scripts/download_huggingface_model.py --model qwen2vl
             ;;
         6)
             uv run python scripts/download_huggingface_model.py --all

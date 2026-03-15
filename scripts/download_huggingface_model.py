@@ -39,7 +39,7 @@ MODEL_CONFIGS = {
         "model_name": "vikhyatk/moondream2",
         "use_vision2seq": False
     },
-     "qwen2-vL-2b-instruct": {
+    "qwen2vl": {
         "model_name": "Qwen/Qwen2-VL-2B-Instruct",
         "use_vision2seq": False
     }
@@ -190,7 +190,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        help="Model type to download (phi4, gemma, gemma3n, llava, moondream)"
+        help="Model type to download (phi4, gemma, gemma3n, llava, moondream, qwen2vl)"
     )
     parser.add_argument(
         "--all",
