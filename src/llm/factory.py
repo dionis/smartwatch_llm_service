@@ -6,6 +6,7 @@ from .base import BaseLLM
 from .phi4 import Phi4LLM
 from .generic_multimodal import GenericMultimodalLLM
 from .moondream import MoondreamLLM
+from .qwen2vl import Qwen2VL
 from .ollama import OllamaLLM
 
 
@@ -43,9 +44,8 @@ class LLMFactory:
             "host": "http://localhost:11434"
         },
         "qwen2vl": {
-            "class": GenericMultimodalLLM,
+            "class": Qwen2VL,
             "model_name": "Qwen/Qwen2-VL-2B-Instruct",
-            "use_vision2seq": False
         }
     }
 
