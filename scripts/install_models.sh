@@ -89,13 +89,14 @@ install_huggingface() {
     echo ""
     echo "1) phi4 (Recommended, ~7B params)"
     echo "2) gemma (~2B params, smaller)"
-    echo "3) llava (~7B params)"
-    echo "4) moondream (~1.8B params, smallest)"
-    echo "5) qwen2vl (~2B params, Qwen2-VL)"
-    echo "6) All models"
-    echo "7) Custom model"
+    echo "3) gemma3n (~2B params, Gemma 3n)"
+    echo "4) llava (~7B params)"
+    echo "5) moondream (~1.8B params, smallest)"
+    echo "6) qwen2vl (~2B params, Qwen2-VL)"
+    echo "7) All models"
+    echo "8) Custom model"
     echo ""
-    read -p "Enter choice (1-6): " hf_choice
+    read -p "Enter choice (1-8): " hf_choice
 
     case $hf_choice in
         1)
@@ -105,18 +106,21 @@ install_huggingface() {
             uv run python scripts/download_huggingface_model.py --model gemma
             ;;
         3)
-            uv run python scripts/download_huggingface_model.py --model llava
+            uv run python scripts/download_huggingface_model.py --model gemma3n
             ;;
         4)
-            uv run python scripts/download_huggingface_model.py --model moondream
+            uv run python scripts/download_huggingface_model.py --model llava
             ;;
         5)
-            uv run python scripts/download_huggingface_model.py --model qwen2vl
+            uv run python scripts/download_huggingface_model.py --model moondream
             ;;
         6)
-            uv run python scripts/download_huggingface_model.py --all
+            uv run python scripts/download_huggingface_model.py --model qwen2vl
             ;;
         7)
+            uv run python scripts/download_huggingface_model.py --all
+            ;;
+        8)
             echo ""
             uv run python scripts/download_huggingface_model.py --list
             echo ""
