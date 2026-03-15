@@ -93,7 +93,8 @@ class Qwen2VL(BaseLLM):
             # Construct full prompt
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
-            # Prepare input in Qwen2-VL's native format with messages
+            # Qwen2-VL: Use the message format that the model expects
+            # This is the correct way to pass image + text to Qwen2-VL
             messages = [
                 {
                     "role": "user",
@@ -110,33 +111,32 @@ class Qwen2VL(BaseLLM):
                 }
             ]
 
-            # Apply chat template - Qwen2-VL's native way of handling conversations
-            try:
-                text = self.processor.apply_chat_template(
-                    messages,
-                    tokenize=False,
-                    add_generation_prompt=True
-                )
-            except (AttributeError, TypeError):
-                # Fallback if apply_chat_template not available
-                text = full_prompt
+            # The key: process messages directly through the processor
+            # This ensures image tokens are properly created
+            text_content = self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
 
-            # Process: Try to use the processor with the messages directly
-            try:
-                # Qwen2-VL's preferred approach - pass messages directly
-                inputs = self.processor(
-                    messages,
-                    padding=True,
-                    return_tensors="pt"
-                )
-            except (TypeError, AttributeError):
-                # Fallback: use standard text + image approach
-                inputs = self.processor(
-                    text=full_prompt,
-                    images=image,
-                    return_tensors="pt",
-                    padding=True
-                )
+            # Extract image from messages for separate processing
+            # Qwen2-VL needs image data to be processed separately
+            image_inputs, video_inputs = [], []
+            for msg in messages:
+                if isinstance(msg.get("content"), list):
+                    for item in msg["content"]:
+                        if item.get("type") == "image":
+                            image_inputs.append(item["image"])
+                        elif item.get("type") == "video":
+                            video_inputs.append(item["video"])
+
+            # Process with correct parameters
+            # Pass image_inputs as images parameter
+            inputs = self.processor(
+                text=[text_content],
+                images=image_inputs if image_inputs else None,
+                videos=video_inputs if video_inputs else None,
+                padding=True,
+                return_tensors="pt"
+            )
 
             inputs = inputs.to(self.device)
 
@@ -149,23 +149,16 @@ class Qwen2VL(BaseLLM):
                     temperature=0.0
                 )
 
-            # Decode response
-            # For messages-based input, the processor expects the full output_ids
-            # For text+image, we need to skip input_ids
-            try:
-                # Try to extract only generated tokens
-                input_token_len = inputs["input_ids"].shape[1]
-                generated_ids = output_ids[:, input_token_len:]
-                response = self.processor.decode(
-                    generated_ids[0],
-                    skip_special_tokens=True
-                )
-            except (IndexError, AttributeError):
-                # Fallback: decode full output
-                response = self.processor.decode(
-                    output_ids[0],
-                    skip_special_tokens=True
-                )
+            # Decode response - only get the generated part
+            input_token_len = inputs["input_ids"].shape[1]
+            generated_ids = output_ids[:, input_token_len:]
+            response = self.processor.decode(
+                generated_ids[0],
+                skip_special_tokens=True
+            )
+
+            # Clean up response
+            response = response.strip()
 
             # Try to extract JSON from response
             try:
