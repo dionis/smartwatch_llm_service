@@ -93,13 +93,41 @@ class Qwen2VL(BaseLLM):
             # Construct full prompt
             full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
-            # Prepare input for Qwen2-VL
-            # The processor handles both text and image inputs
+            # Prepare input in Qwen2-VL's native format
+            # Qwen2-VL expects messages in a specific chat format
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "image": image,
+                        },
+                        {
+                            "type": "text",
+                            "text": full_prompt
+                        }
+                    ],
+                }
+            ]
+
+            # Apply chat template and process
+            text = self.processor.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+
+            # Process vision info (this is key for Qwen2-VL)
+            image_inputs, video_inputs = self.processor.process_vision_info(messages)
+
+            # Prepare inputs with proper format
             inputs = self.processor(
-                text=full_prompt,
-                images=image,
-                return_tensors="pt",
-                padding=True
+                text=[text],
+                images=image_inputs,
+                videos=video_inputs,
+                padding=True,
+                return_tensors="pt"
             )
 
             inputs = inputs.to(self.device)
@@ -113,11 +141,16 @@ class Qwen2VL(BaseLLM):
                     temperature=0.0
                 )
 
-            # Decode response
-            response = self.processor.decode(
-                output_ids[0],
-                skip_special_tokens=True
-            )
+            # Decode response - extract only the generated part
+            generated_ids = [
+                output_ids[len(inputs["input_ids"][i]):]
+                for i in range(len(inputs["input_ids"]))
+            ]
+            response = self.processor.batch_decode(
+                generated_ids,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=False
+            )[0]
 
             # Try to extract JSON from response
             try:
